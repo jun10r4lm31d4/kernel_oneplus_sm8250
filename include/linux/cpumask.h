@@ -54,7 +54,6 @@ extern unsigned int nr_cpu_ids;
  *     cpu_present_mask - has bit 'cpu' set iff cpu is populated
  *     cpu_online_mask  - has bit 'cpu' set iff cpu available to scheduler
  *     cpu_active_mask  - has bit 'cpu' set iff cpu available to migration
- *     cpu_isolated_mask- has bit 'cpu' set iff cpu isolated
  *     cpu_lp_mask      - has bit 'cpu' set iff cpu is part of little cluster
  *     cpu_perf_mask    - has bit 'cpu' set iff cpu is part of big cluster
  *     cpu_prime_mask   - has bit 'cpu' set iff cpu is part of prime cluster
@@ -94,12 +93,16 @@ extern struct cpumask __cpu_possible_mask;
 extern struct cpumask __cpu_online_mask;
 extern struct cpumask __cpu_present_mask;
 extern struct cpumask __cpu_active_mask;
-extern struct cpumask __cpu_isolated_mask;
 #define cpu_possible_mask ((const struct cpumask *)&__cpu_possible_mask)
 #define cpu_online_mask   ((const struct cpumask *)&__cpu_online_mask)
 #define cpu_present_mask  ((const struct cpumask *)&__cpu_present_mask)
 #define cpu_active_mask   ((const struct cpumask *)&__cpu_active_mask)
+
+#ifdef CONFIG_SCHED_WALT
+extern struct cpumask __cpu_isolated_mask;
 #define cpu_isolated_mask ((const struct cpumask *)&__cpu_isolated_mask)
+#endif
+
 extern const struct cpumask *const cpu_lp_mask;
 extern const struct cpumask *const cpu_perf_mask;
 extern const struct cpumask *const cpu_prime_mask;
@@ -109,6 +112,22 @@ extern const struct cpumask *const cpu_prime_mask;
 #define num_possible_cpus()	cpumask_weight(cpu_possible_mask)
 #define num_present_cpus()	cpumask_weight(cpu_present_mask)
 #define num_active_cpus()	cpumask_weight(cpu_active_mask)
+#define cpu_online(cpu)		cpumask_test_cpu((cpu), cpu_online_mask)
+#define cpu_possible(cpu)	cpumask_test_cpu((cpu), cpu_possible_mask)
+#define cpu_present(cpu)	cpumask_test_cpu((cpu), cpu_present_mask)
+#define cpu_active(cpu)		cpumask_test_cpu((cpu), cpu_active_mask)
+#else
+#define num_online_cpus()	1U
+#define num_possible_cpus()	1U
+#define num_present_cpus()	1U
+#define num_active_cpus()	1U
+#define cpu_online(cpu)		((cpu) == 0)
+#define cpu_possible(cpu)	((cpu) == 0)
+#define cpu_present(cpu)	((cpu) == 0)
+#define cpu_active(cpu)		((cpu) == 0)
+#endif
+
+#if defined(CONFIG_SCHED_WALT) && NR_CPUS > 1
 #define num_isolated_cpus()	cpumask_weight(cpu_isolated_mask)
 #define num_online_uniso_cpus()						\
 ({									\
@@ -117,23 +136,11 @@ extern const struct cpumask *const cpu_prime_mask;
 	cpumask_andnot(&mask, cpu_online_mask, cpu_isolated_mask);	\
 	cpumask_weight(&mask);						\
 })
-#define cpu_online(cpu)		cpumask_test_cpu((cpu), cpu_online_mask)
-#define cpu_possible(cpu)	cpumask_test_cpu((cpu), cpu_possible_mask)
-#define cpu_present(cpu)	cpumask_test_cpu((cpu), cpu_present_mask)
-#define cpu_active(cpu)		cpumask_test_cpu((cpu), cpu_active_mask)
 #define cpu_isolated(cpu)	cpumask_test_cpu((cpu), cpu_isolated_mask)
-#else
-#define num_online_cpus()	1U
-#define num_possible_cpus()	1U
-#define num_present_cpus()	1U
-#define num_active_cpus()	1U
+#else /* !CONFIG_SCHED_WALT || NR_CPUS == 1 */
 #define num_isolated_cpus()	0U
-#define num_online_uniso_cpus()	1U
-#define cpu_online(cpu)		((cpu) == 0)
-#define cpu_possible(cpu)	((cpu) == 0)
-#define cpu_present(cpu)	((cpu) == 0)
-#define cpu_active(cpu)		((cpu) == 0)
-#define cpu_isolated(cpu)	((cpu) != 0)
+#define num_online_uniso_cpus()	num_online_cpus()
+#define cpu_isolated(cpu)	0U
 #endif
 
 static inline void cpu_max_bits_warn(unsigned int cpu, unsigned int bits)
@@ -798,7 +805,9 @@ extern const DECLARE_BITMAP(cpu_all_bits, NR_CPUS);
 #define for_each_possible_cpu(cpu) for_each_cpu((cpu), cpu_possible_mask)
 #define for_each_online_cpu(cpu)   for_each_cpu((cpu), cpu_online_mask)
 #define for_each_present_cpu(cpu)  for_each_cpu((cpu), cpu_present_mask)
+#ifdef CONFIG_SCHED_WALT
 #define for_each_isolated_cpu(cpu) for_each_cpu((cpu), cpu_isolated_mask)
+#endif
 
 /* Wrappers for arch boot code to manipulate normally-constant masks */
 void init_cpu_present(const struct cpumask *src);
@@ -846,6 +855,7 @@ set_cpu_active(unsigned int cpu, bool active)
 		cpumask_clear_cpu(cpu, &__cpu_active_mask);
 }
 
+#ifdef CONFIG_SCHED_WALT
 static inline void
 set_cpu_isolated(unsigned int cpu, bool isolated)
 {
@@ -854,6 +864,7 @@ set_cpu_isolated(unsigned int cpu, bool isolated)
 	else
 		cpumask_clear_cpu(cpu, &__cpu_isolated_mask);
 }
+#endif
 
 
 /**
