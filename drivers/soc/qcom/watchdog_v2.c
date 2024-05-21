@@ -440,7 +440,7 @@ static void ping_other_cpus(struct msm_watchdog_data *wdog_dd)
 #ifndef OPLUS_BUG_STABILITY
 /* only ping cpu need ping */
 	for_each_cpu(cpu, cpu_online_mask) {
-		if (!cpu_idle_pc_state[cpu] && !cpu_isolated(cpu)) {
+		if (!cpu_idle_pc_state[cpu]) {
 			wdog_dd->ping_start[cpu] = sched_clock();
 			smp_call_function_single(cpu, keep_alive_response,
 						 wdog_dd, 1);
@@ -448,7 +448,7 @@ static void ping_other_cpus(struct msm_watchdog_data *wdog_dd)
 	}
 #else
 	for_each_cpu(wdog_cpu, &mask) {
-		if (!cpu_idle_pc_state[wdog_cpu] && !cpu_isolated(wdog_cpu)) {
+		if (!cpu_idle_pc_state[wdog_cpu]) {
 			wdog_dd->ping_start[wdog_cpu] = sched_clock();
 			smp_call_function_single(wdog_cpu, keep_alive_response,
 						 wdog_dd, 1);

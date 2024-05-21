@@ -172,7 +172,7 @@ void get_cpu_ping_mask(cpumask_t *pmask)
 	cpumask_copy(&avail_mask, cpu_online_mask);
 
 	for_each_cpu(cpu, cpu_online_mask) {
-		if (cpu_idle_pc_state[cpu] || cpu_isolated(cpu))
+		if (cpu_idle_pc_state[cpu])
 			cpumask_clear_cpu(cpu, pmask);
 	}
 	printk(KERN_INFO "[wdog_util]cpu avail mask: 0x%lx; ping mask: 0x%lx; irqs since last: %u\n",
