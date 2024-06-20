@@ -156,18 +156,6 @@ u64 get_cpu_idle_time(unsigned int cpu, u64 *wall, int io_busy)
 }
 EXPORT_SYMBOL_GPL(get_cpu_idle_time);
 
-__weak void arch_set_freq_scale(struct cpumask *cpus, unsigned long cur_freq,
-		unsigned long max_freq)
-{
-}
-EXPORT_SYMBOL_GPL(arch_set_freq_scale);
-
-__weak void arch_set_max_freq_scale(struct cpumask *cpus,
-				    unsigned long policy_max_freq)
-{
-}
-EXPORT_SYMBOL_GPL(arch_set_max_freq_scale);
-
 /*
  * This is a generic cpufreq init() routine which can be used by cpufreq
  * drivers of SMP systems. It will do following:
@@ -419,6 +407,10 @@ void cpufreq_freq_transition_end(struct cpufreq_policy *policy,
 
 	cpufreq_notify_post_transition(policy, freqs, transition_failed);
 
+	arch_set_freq_scale(policy->related_cpus,
+			    policy->cur,
+			    policy->cpuinfo.max_freq);
+
 	policy->transition_ongoing = false;
 	policy->transition_task = NULL;
 
@@ -541,11 +533,11 @@ unsigned int cpufreq_policy_transition_delay_us(struct cpufreq_policy *policy)
 		 * for platforms where transition_latency is in milliseconds, it
 		 * ends up giving unrealistic values.
 		 *
-		 * Cap the default transition delay to 10 ms, which seems to be
+		 * Cap the default transition delay to 2 ms, which seems to be
 		 * a reasonable amount of time after which we should reevaluate
 		 * the frequency.
 		 */
-		return min(latency * LATENCY_MULTIPLIER, (unsigned int)10000);
+		return min(latency * LATENCY_MULTIPLIER, (unsigned int)(2 * MSEC_PER_SEC));
 	}
 
 	return LATENCY_MULTIPLIER;
@@ -2293,8 +2285,6 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 	policy->min = new_policy->min;
 	policy->max = new_policy->max;
 	trace_cpu_frequency_limits(policy);
-
-	arch_set_max_freq_scale(policy->cpus, policy->max);
 
 	policy->cached_target_freq = UINT_MAX;
 

@@ -135,21 +135,32 @@ static unsigned long limits_mitigation_notify(struct cpufreq_qcom *c,
 					bool limit)
 {
 	struct cpufreq_policy *policy;
-	u32 cpu;
-	unsigned long freq;
+	u32 cpu = cpumask_first(&c->related_cpus);
+	unsigned long freq, max_capacity, capacity;
+
+	max_capacity = arch_scale_cpu_capacity(cpu);
+	capacity = max_capacity;
 
 	if (limit) {
 		freq = readl_relaxed(c->reg_bases[REG_DOMAIN_STATE]) &
 				GENMASK(7, 0);
 		freq = DIV_ROUND_CLOSEST_ULL(freq * c->xo_rate, 1000);
+
+		/* Convert limited freq to reduced capacity */
+		capacity = mult_frac(max_capacity, freq, policy->cpuinfo.max_freq);
+
+		/* Don't pass boost capacity to scheduler */
+		if (capacity > max_capacity)
+			capacity = max_capacity;
 	} else {
-		cpu = cpumask_first(&c->related_cpus);
 		policy = cpufreq_cpu_get_raw(cpu);
 		if (!policy)
 			freq = U32_MAX;
 		else
 			freq = policy->cpuinfo.max_freq;
 	}
+
+	arch_set_thermal_pressure(policy->related_cpus, max_capacity - capacity);
 
 	trace_dcvsh_freq(cpumask_first(&c->related_cpus), freq);
 	c->dcvsh_freq_limit = freq;
@@ -259,10 +270,6 @@ qcom_cpufreq_hw_target_index(struct cpufreq_policy *policy,
 	} else {
 		writel_relaxed(index, c->reg_bases[REG_PERF_STATE]);
 	}
-
-	arch_set_freq_scale(policy->related_cpus,
-			    policy->freq_table[index].frequency,
-			    policy->cpuinfo.max_freq);
 
 	return 0;
 }
@@ -600,8 +607,7 @@ static int qcom_cpu_resources_init(struct platform_device *pdev,
 		c->dcvsh_irq = of_irq_get(dev->of_node, index);
 		if (c->dcvsh_irq > 0) {
 			mutex_init(&c->dcvsh_lock);
-			INIT_DEFERRABLE_WORK(&c->freq_poll_work,
-					limits_dcvsh_poll);
+			INIT_DELAYED_WORK(&c->freq_poll_work, limits_dcvsh_poll);
 		}
 	}
 
